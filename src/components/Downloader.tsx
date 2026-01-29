@@ -60,10 +60,59 @@ export default function Downloader() {
         }
     };
 
-    const handleDownload = (title: string, itag: number, container: string) => {
-        // build proxy url
-        const downloadUrl = `/api/download?url=${encodeURIComponent(url)}&itag=${itag}&title=${encodeURIComponent(title)}&container=${container}`;
-        window.location.href = downloadUrl;
+    const [downloading, setDownloading] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    const handleDownload = async (title: string, itag: number, container: string) => {
+        try {
+            setDownloading(true);
+            setProgress(0);
+
+            // Fetch via proxy
+            const downloadUrl = `/api/download?url=${encodeURIComponent(url)}&itag=${itag}&title=${encodeURIComponent(title)}&container=${container}`;
+
+            const response = await fetch(downloadUrl);
+            if (!response.ok) throw new Error('Download failed');
+
+            const contentLength = response.headers.get('Content-Length');
+            const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+            if (!response.body) throw new Error('ReadableStream not supported');
+
+            const reader = response.body.getReader();
+            const chunks = [];
+            let receivedLength = 0;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                chunks.push(value);
+                receivedLength += value.length;
+
+                if (total) {
+                    setProgress(Math.round((receivedLength / total) * 100));
+                }
+            }
+
+            const blob = new Blob(chunks);
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `${title.replace(/[^a-z0-9]/gi, '_').substring(0, 50)}.${container}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(blobUrl);
+            document.body.removeChild(a);
+
+        } catch (err: any) {
+            console.error(err);
+            setError(err.message || 'Download failed');
+        } finally {
+            setDownloading(false);
+            setProgress(0);
+        }
     };
 
     const formatBytes = (bytes?: string) => {
@@ -77,7 +126,7 @@ export default function Downloader() {
     };
 
     return (
-        <div className="w-full max-w-3xl mx-auto p-4 flex flex-col items-center gap-8">
+        <div className="w-full max-w-3xl mx-auto p-4 flex flex-col items-center gap-8 relative">
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -175,15 +224,41 @@ export default function Downloader() {
                                                 </div>
                                                 <button
                                                     onClick={() => handleDownload(data.videoDetails.title, fmt.itag, fmt.container)}
-                                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                                                    disabled={downloading}
+                                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
-                                                    <Download className="w-4 h-4" /> Download
+                                                    {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                                    Download
                                                 </button>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Progress Toast */}
+            <AnimatePresence>
+                {downloading && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 50 }}
+                        className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-sm bg-gray-900 border border-white/10 rounded-2xl p-4 shadow-2xl z-50 flex flex-col gap-3"
+                    >
+                        <div className="flex items-center justify-between">
+                            <span className="font-semibold text-sm">Downloading...</span>
+                            <span className="text-xs font-mono text-gray-400">{progress}%</span>
+                        </div>
+                        <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                            <motion.div
+                                className="h-full bg-gradient-to-r from-red-500 to-pink-500"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progress}%` }}
+                            />
                         </div>
                     </motion.div>
                 )}
