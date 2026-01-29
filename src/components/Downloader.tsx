@@ -60,9 +60,10 @@ export default function Downloader() {
         }
     };
 
-    const handleDownload = (directUrl: string) => {
-        // Open direct YouTube URL (googlevideo.com)
-        window.open(directUrl, '_blank');
+    const handleDownload = (title: string, itag: number, container: string) => {
+        // build proxy url
+        const downloadUrl = `/api/download?url=${encodeURIComponent(url)}&itag=${itag}&title=${encodeURIComponent(title)}&container=${container}`;
+        window.location.href = downloadUrl;
     };
 
     const formatBytes = (bytes?: string) => {
@@ -173,8 +174,8 @@ export default function Downloader() {
                                                     </div>
                                                 </div>
                                                 <button
-                                                    onClick={() => handleDownload(fmt.url)}
-                                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                                                    onClick={() => handleDownload(data.videoDetails.title, fmt.itag, fmt.container)}
+                                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
                                                 >
                                                     <Download className="w-4 h-4" /> Download
                                                 </button>
